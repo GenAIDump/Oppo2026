@@ -1,0 +1,170 @@
+# File: Oppo/Dockerfile
+# Purpose: Builds the Docker image for Python services (A2A Host, MCP Server, Listeners)
+
+# Use a specific Python version known to work with dependencies
+FROM python:3.11.5-slim-bullseye
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies (if any are needed by Python packages)
+# Example: RUN apt-get update && apt-get install -y --no-install-recommends some-package && rm -rf /var/lib/apt/lists/*
+
+# --- Dependency Installation ---
+# Copy only dependency definition files first to leverage Docker cache
+COPY ./requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+# Upgrade pip first, then install requirements
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Optional: Download NLP models if needed during build and not handled by libraries
+# RUN python -m spacy download en_core_web_sm
+# RUN python -m nltk.downloader vader_lexicon punkt
+
+# --- Application Code ---
+# Copy the entire application code into the container
+# Ensure .dockerignore excludes unnecessary files (.git, .env, venv, __pycache__, etc.)
+COPY . /app
+
+# --- Runtime ---
+# Expose ports used by the different services this image might run as
+EXPOSE 8000 8001
+
+# Add a non-root user for security best practices
+# RUN groupadd --gid 1001 oppo && \
+#     useradd --uid 1001 --gid 1001 --shell /bin/bash --create-home oppo
+# USER oppo
+# WORKDIR /app
+
+# Default command (will be overridden by docker-compose.yml for each service)
+CMD ["echo", "Container started. Specify command in docker-compose.yml to run a service (a2a_host, mcp_server, or listener_service)."]
+
+________________________________________
+Part 3: docker-compose.yml (Regenerated for LLM/MCP)
+YAML
+# File: Oppo/docker-compose.yml
+# Purpose: Docker Compose configuration for Oppo services (v0.1 LLM/MCP)
+
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5-enterprise # Ensure license compliance for Enterprise
+    container_name: oppo-neo4j
+    ports:
+      - "${NEO4J_BROWSER_PORT:-7474}:7474"  # HTTP Browser
+      - "${NEO4J_BOLT_PORT:-7687}:7687"    # Bolt Driver
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      # - ./neo4j/plugins:/plugins # Mount local plugins dir if needed
+    environment:
+      # Load from .env file via env_file directive below is safer
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-password_change_this}
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes" # Required for Enterprise Edition
+      NEO4J_PLUGINS: '["apoc"]' # Example, ensure APOC plugin is compatible/available
+    env_file:
+      - .env # Make Neo4j container aware of .env vars if needed (e.g. for auth)
+    networks:
+      - oppo-network
+    healthcheck:
+      # Use $$ to escape $ for docker-compose variable expansion within the shell command
+      test: ["CMD-SHELL", "cypher-shell -u $$NEO4J_USERNAME -p $$NEO4J_PASSWORD -a ${NEO4J_URI:-neo4j://localhost:7687} 'RETURN 1' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  mcp_server:
+    build:
+      context: .
+      dockerfile: Dockerfile # Use the main Dockerfile
+    container_name: oppo-mcp-server
+    ports:
+      - "8001:8001" # Expose MCP port
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - .:/app # Mount code for development; remove for production image builds
+    env_file:
+      - .env # Load all env vars from .env file
+    environment:
+      NEO4J_URI: neo4j://neo4j:7687 # Internal service name for Neo4j
+      # Inherits DB user/pass, INTERNAL_SERVICE_API_KEY etc from env_file
+    networks:
+      - oppo-network
+    # Command to run the MCP FastAPI app
+    command: ["uvicorn", "database.modern_context_protocol:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "2"] # Adjust workers as needed
+    restart: unless-stopped
+
+  a2a_host:
+    build:
+      context: .
+      dockerfile: Dockerfile # Use the main Dockerfile
+    container_name: oppo-a2a-host
+    ports:
+      - "8000:8000"
+    depends_on:
+      neo4j: # Needed indirectly via MCP
+        condition: service_healthy
+      mcp_server: # Depends on MCP for DB access & context
+        condition: service_started # Assume MCP starts relatively fast
+    volumes:
+      - .:/app # Mount code for development; remove for production
+    env_file:
+      - .env # Load all env vars
+    environment:
+      MCP_SERVER_URL: http://mcp_server:8001 # Internal URL for MCP service
+      # Inherits LLM keys, SECRET_KEY etc from env_file
+    networks:
+      - oppo-network
+    # Command to run the main A2A Host FastAPI app
+    command: ["uvicorn", "a2a_host.server:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"] # Adjust workers; Use --reload only for dev
+    restart: unless-stopped
+
+  listener_service:
+    build:
+      context: .
+      dockerfile: Dockerfile # Use the main Dockerfile
+    container_name: oppo-listener-service
+    depends_on:
+      neo4j: # Needed indirectly via MCP
+        condition: service_healthy
+      mcp_server: # Needs MCP to get config/state
+        condition: service_started
+      a2a_host: # Needs A2A Host Ingestion endpoint
+        condition: service_started
+    volumes:
+      - .:/app # Mount code for development; remove for production
+    env_file:
+      - .env # Load all env vars
+    environment:
+      MCP_SERVER_URL: http://mcp_server:8001 # How listener reaches MCP
+      A2A_HOST_INTERNAL_URL: http://a2a_host:8000 # How listener reaches A2A Host Ingestion
+      # Inherits Listener API keys etc from env_file
+    networks:
+      - oppo-network
+    # Command to run the Listener Manager script's main execution block
+    # Use -u for unbuffered Python output to see logs immediately
+    command: ["python", "-u", "-m", "listeners.listener_manager"]
+    restart: unless-stopped
+
+networks:
+  oppo-network:
+    driver: bridge
+
+volumes:
+  neo4j_data: # Persist Neo4j data
+  neo4j_logs: # Persist Neo4j logs

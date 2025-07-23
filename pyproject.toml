@@ -1,0 +1,104 @@
+# File: Oppo/pyproject.toml
+# Purpose: Defines project metadata, dependencies, and build system using PEP 517/621 standards.
+
+[build-system]
+requires = ["setuptools>=61.0"] # Specify the build backend requirement
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oppo-a2a-host"
+version = "0.1.0" # LLM-Powered Version
+description = "LLM-Powered A2A Opposition Research Host with MCP Server."
+readme = "README.md"
+requires-python = ">=3.10" # Specify minimum Python version
+license = { text = "Specify Your License (e.g., MIT, Apache 2.0)" } # Update license
+authors = [
+  { name = "Your Name / Organization", email = "contact@example.com" }, # Update author info
+]
+keywords = ["politics", "opposition research", "a2a", "llm", "neo4j", "fastapi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License", # Choose your license
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Security",
+    "Framework :: FastAPI",
+]
+
+# Core dependencies needed for the application to run
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.23.0", # Includes standard ASGI server dependencies
+    "neo4j>=5.10.0",
+    "python-dotenv>=1.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "schedule>=1.2.0",
+    "requests>=2.31.0",
+    "google-api-python-client>=2.80.0",
+    "google-auth-httplib2>=0.1.0",
+    "google-auth-oauthlib>=1.0.0",
+    "isodate>=0.6.1",
+    "python-telegram-bot[job-queue]>=20.5", # Includes job queue extra
+    "google-generativeai>=0.4.0",           # For Gemini LLM
+    "pandas>=2.0.0",                         # For CSV script
+    "beautifulsoup4>=4.12.0",                # For web scraping crawlers/processors
+    "python-dateutil>=2.8.0",                # For flexible date parsing
+]
+
+# Optional dependencies - can be installed using pip install .[option]
+[project.optional-dependencies]
+# Dependencies for specific LLMs (only install if used)
+openai = ["openai>=1.3.0"]
+anthropic = ["anthropic>=0.15.0"]
+
+# Dependencies for development and testing
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio", # For testing async FastAPI code
+    "requests-mock",  # Or use 'responses' for mocking HTTP requests
+    "mypy",           # Static type checker
+    "ruff",           # Linter and formatter
+    # Add other dev tools like coverage, pre-commit hooks etc.
+]
+
+# Dependencies potentially needed by specific analysis modules (beyond core LLMs)
+# Example:
+# nlp = [
+#     "spacy>=3.6.0",
+#     "nltk>=3.8.0",
+#     "sentence-transformers>=2.2.0",
+# ]
+
+
+[project.urls]
+# Homepage = "https://github.com/yourusername/oppo-a2a-host" # Example URL
+# Repository = "https://github.com/yourusername/oppo-a2a-host"
+# Documentation = "https://your-docs-url.com"
+
+[project.scripts]
+# Define command-line scripts if any
+# Example: ingest-csv = "scripts.ingest_candidates_csv:main_cli_function" # Assumes a main() in the script
+# Run with `ingest-csv path/to/file.csv` after installation
+
+# Tool-specific configurations (Example using Ruff linter/formatter)
+[tool.ruff]
+line-length = 100
+select = ["E", "W", "F", "I", "UP", "B", "C4", "T20", "SIM", "PTH", "Q"] # Select rule codes
+ignore = ["E501"] # Ignore line length errors (handled by formatter)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# Add other tool configurations (pytest, mypy, etc.) as needed
+# [tool.pytest.ini_options]
+# addopts = "-sv"
+# testpaths = ["tests"]
+
