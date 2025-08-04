@@ -14,7 +14,9 @@ import logging
 import os
 import time
 import json
-from typing import Dict, Any, Optional, Literal, Tuple
+from typing import Dict, Any, Optional
+from enum import Enum
+import requests
 
 # Import config from a2a_host
 try:
@@ -88,7 +90,14 @@ logging.getLogger("httpx").setLevel(logging.WARNING) # Used by openai/anthropic
 
 
 # Supported LLM Providers (extend this type as needed)
-LlmProvider = Literal["GEMINI", "OPENAI", "ANTHROPIC"]
+class LLMProvider(str, Enum):
+    """Enumeration of supported LLM providers."""
+    GEMINI = "GEMINI"
+    OPENAI = "OPENAI"
+    ANTHROPIC = "ANTHROPIC"
+
+# Alias retained for backward compatibility with previous type hints
+LlmProvider = LLMProvider
 
 # Default safety settings for Gemini (can be overridden via kwargs)
 DEFAULT_GEMINI_SAFETY_SETTINGS = {
